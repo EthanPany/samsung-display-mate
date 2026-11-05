@@ -51,9 +51,18 @@ final class CoreTests: XCTestCase {
         var k = KnobAccelerator()
         for i in 0..<10 { XCTAssertEqual(k.step(up: true, at: Double(i) * 0.4), 1) }
     }
+    func testNormalTurningStaysPrecise() {
+        var k = KnobAccelerator()
+        for i in 0..<40 { XCTAssertEqual(k.step(up: true, at: Double(i) * 0.1), 1) }
+    }
+    func testShortQuickBurstDoesNotJump() {
+        var k = KnobAccelerator()
+        let steps = (0..<4).map { k.step(up: true, at: Double($0) * 0.05) }
+        XCTAssertEqual(steps, [1, 1, 1, 1])
+    }
     func testSpinningBuildsUpToEight() {
         var k = KnobAccelerator()
-        let steps = (0..<12).map { k.step(up: true, at: Double($0) * 0.03) }
+        let steps = (0..<24).map { k.step(up: true, at: Double($0) * 0.02) }
         XCTAssertEqual(steps.first, 1)
         XCTAssertEqual(steps.last, 8)
         XCTAssertEqual(steps, steps.sorted())

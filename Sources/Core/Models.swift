@@ -123,12 +123,13 @@ public struct KnobAccelerator: Sendable {
             smoothed = Self.resetAfter
             return 1
         }
-        smoothed = smoothed * 0.5 + (time - lastTime) * 0.5
+        // Weighted towards the past, so it takes a sustained spin to speed up.
+        smoothed = smoothed * 0.7 + (time - lastTime) * 0.3
         switch smoothed {
-        case 0.20...: return 1
-        case 0.13...: return 2
-        case 0.09...: return 3
-        case 0.055...: return 5
+        case 0.09...: return 1
+        case 0.06...: return 2
+        case 0.04...: return 3
+        case 0.025...: return 5
         default: return 8
         }
     }
