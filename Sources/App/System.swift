@@ -65,6 +65,32 @@ enum AudioRouter {
     }
 }
 
+/// Plays the macOS volume feedback sound, following System Settings → Sound → "Play feedback when volume is changed".
+/// macOS can't play it itself here, because the app takes the key before the system sees it.
+@MainActor final class VolumeFeedback {
+    private static let path = "/System/Library/LoginPlugins/BezelServices.loginPlugin/Contents/Resources/volume.aiff"
+    private let sound = NSSound(contentsOfFile: path, byReference: true)
+    private var pending: Task<Void, Never>?
+
+    private var isEnabledInSystem: Bool {
+        let value = CFPreferencesCopyValue("com.apple.sound.beep.feedback" as CFString, kCFPreferencesAnyApplication,
+                                           kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        return (value as? NSNumber)?.boolValue ?? false
+    }
+
+    /// Holding Shift flips the setting, as it does for the system. Spinning a knob plays once, when it stops.
+    func keyReleased(flags: NSEvent.ModifierFlags) {
+        pending?.cancel()
+        guard isEnabledInSystem != flags.contains(.shift) else { return }
+        pending = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(90))
+            guard !Task.isCancelled, let sound = self?.sound else { return }
+            sound.stop()
+            sound.play()
+        }
+    }
+}
+
 enum Keychain {
     private static let service = "com.ethanpan.SamsungDisplayMate.token"
     private static func query(_ account: String) -> [String: Any] {
@@ -133,6 +159,8 @@ enum MediaKey: Int { case soundUp = 0, soundDown = 1, brightnessUp = 2, brightne
 @MainActor final class KeyInterceptor {
     /// Returns true when the app handled the key, which removes it from the normal system path.
     var handler: ((MediaKey, NSEvent.ModifierFlags) -> Bool)?
+    /// Called when a key the app handled is released.
+    var onRelease: ((MediaKey, NSEvent.ModifierFlags) -> Void)?
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var swallowedDown = Set<Int>()
@@ -181,6 +209,8 @@ enum MediaKey: Int { case soundUp = 0, soundDown = 1, brightnessUp = 2, brightne
             swallowedDown.insert(code)
             return true
         }
-        return swallowedDown.remove(code) != nil
+        guard swallowedDown.remove(code) != nil else { return false }
+        onRelease?(key, ns.modifierFlags)
+        return true
     }
 }

@@ -12,8 +12,8 @@ Traffic stays on your local network. The app has no accounts, no cloud service a
 
 ## Features
 
-- **Keyboard control:** brightness, volume and mute keys adjust the monitor directly. Brightness moves in steps of about 1/16 like macOS, and volume uses finer steps at low levels. Hold Shift and Option for single steps.
-- **Native-looking level banner:** a glass capsule with 16 segments appears in the top corner, matching the one in macOS 26 and later. Drag it for continuous adjustment.
+- **Keyboard control:** brightness, volume and mute keys adjust the monitor directly. Brightness moves in steps of about 1/16 like macOS. Volume accelerates like a knob: 1 per click when turning slowly, up to 8 when spinning fast. Hold Shift and Option for single steps. The volume feedback sound follows your setting in System Settings → Sound.
+- **Native-looking level banner:** an animated glass capsule with the display's name, the percentage and 16 segments appears in the top corner, styled after the one in macOS 26 and later. Drag it for continuous adjustment.
 - **Touch Bar:** the brightness control works, and a Control Strip button opens brightness and volume sliders for the monitor.
 - **Automatic plug and unplug:** the app only takes over keys while the monitor is connected.
 - **Sensible key routing:** volume keys apply when the monitor is your sound output, and brightness keys apply when the pointer is on its screen. Otherwise your Mac behaves normally.

@@ -33,6 +33,8 @@ private let log = Logger(subsystem: "com.ethanpan.SamsungDisplayMate", category:
     @ObservationIgnored private let hud = HUDController()
     @ObservationIgnored private let touchBar = TouchBarControls()
     @ObservationIgnored private var tickCount = 0
+    @ObservationIgnored private var knob = KnobAccelerator()
+    @ObservationIgnored private let feedback = VolumeFeedback()
 
     var activeMonitor: PairedMonitor? { settings.monitors.first { $0.id == activeMonitorID } }
     var activeDisplay: DisplayInfo? { activeMonitor.flatMap { m in displays.first { matches(m, $0) } } }
@@ -62,6 +64,9 @@ private let log = Logger(subsystem: "com.ethanpan.SamsungDisplayMate", category:
     init() {
         settings = .load()
         keys.handler = { [unowned self] key, flags in handleKey(key, flags) }
+        keys.onRelease = { [unowned self] key, flags in
+            if key == .soundUp || key == .soundDown { feedback.keyReleased(flags: flags) }
+        }
         hud.onDrag = { [unowned self] kind, level in
             if kind == .brightness {
                 set(.backlight, .int(Int((level * 50).rounded())))
@@ -355,7 +360,9 @@ private let log = Logger(subsystem: "com.ethanpan.SamsungDisplayMate", category:
             if key == .mute {
                 toggleMute()
             } else {
-                let v = KeyStep.volume(int(.volume), up: key == .soundUp, fine: fine, in: 0...100)
+                let up = key == .soundUp
+                let step = knob.step(up: up, at: ProcessInfo.processInfo.systemUptime)
+                let v = KeyStep.volume(int(.volume), up: up, step: fine ? 1 : step, in: 0...100)
                 if isMuted { set(.mute, .string("muteOff")) }
                 set(.volume, .int(v))
             }
@@ -366,7 +373,7 @@ private let log = Logger(subsystem: "com.ethanpan.SamsungDisplayMate", category:
 
     private func showLevel(_ kind: LevelKind, _ level: Double, on display: DisplayInfo) {
         guard settings.showHUD else { return }
-        hud.show(kind, level: level, on: Displays.screen(for: display.id))
+        hud.show(kind, level: level, title: display.name, on: Displays.screen(for: display.id))
     }
 
     // MARK: Power

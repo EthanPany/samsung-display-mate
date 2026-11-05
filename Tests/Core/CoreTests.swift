@@ -42,19 +42,29 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(KeyStep.brightness(1, up: false, fine: false, in: 0...50), 0)
         XCTAssertEqual(KeyStep.brightness(5, up: true, fine: true, in: 0...50), 6)
     }
-    func testVolumeStepsAreFinerWhenQuiet() {
-        XCTAssertEqual(KeyStep.volume(0, up: true, fine: false, in: 0...100), 1)
-        XCTAssertEqual(KeyStep.volume(9, up: true, fine: false, in: 0...100), 11)
-        XCTAssertEqual(KeyStep.volume(80, up: false, fine: false, in: 0...100), 74)
-        XCTAssertEqual(KeyStep.volume(5, up: false, fine: true, in: 0...100), 4)
+    func testVolumeStepClamps() {
+        XCTAssertEqual(KeyStep.volume(98, up: true, step: 8, in: 0...100), 100)
+        XCTAssertEqual(KeyStep.volume(3, up: false, step: 8, in: 0...100), 0)
+        XCTAssertEqual(KeyStep.volume(9, up: true, step: 1, in: 0...100), 10)
     }
-    func testVolumeStepsReachBothEnds() {
-        var v = 0, presses = 0
-        while v < 100, presses < 100 { let n = KeyStep.volume(v, up: true, fine: false, in: 0...100); XCTAssertGreaterThan(n, v); v = n; presses += 1 }
-        XCTAssertEqual(v, 100); XCTAssertLessThan(presses, 40)
-        presses = 0
-        while v > 0, presses < 100 { let n = KeyStep.volume(v, up: false, fine: false, in: 0...100); XCTAssertLessThan(n, v); v = n; presses += 1 }
-        XCTAssertEqual(v, 0)
+    func testSlowTurnsStayAtOne() {
+        var k = KnobAccelerator()
+        for i in 0..<10 { XCTAssertEqual(k.step(up: true, at: Double(i) * 0.4), 1) }
+    }
+    func testSpinningBuildsUpToEight() {
+        var k = KnobAccelerator()
+        let steps = (0..<12).map { k.step(up: true, at: Double($0) * 0.03) }
+        XCTAssertEqual(steps.first, 1)
+        XCTAssertEqual(steps.last, 8)
+        XCTAssertEqual(steps, steps.sorted())
+    }
+    func testReversingOrPausingStartsOver() {
+        var k = KnobAccelerator()
+        var t = 0.0
+        for _ in 0..<10 { _ = k.step(up: true, at: t); t += 0.03 }
+        XCTAssertEqual(k.step(up: false, at: t), 1)
+        for _ in 0..<10 { t += 0.03; _ = k.step(up: false, at: t) }
+        XCTAssertEqual(k.step(up: false, at: t + 1), 1)
     }
     func testOlderSavedSettingsKeepTheirPairing() throws {
         let old = #"{"monitors":[{"id":"a","name":"M","host":"192.0.2.10"}],"volumeStep":2,"handleKeys":false}"#

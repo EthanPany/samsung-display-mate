@@ -16,6 +16,7 @@ enum LevelKind {
 @MainActor @Observable final class HUDState {
     var kind = LevelKind.brightness
     var level = 0.0
+    var title = ""
     var visible = false
 }
 
@@ -26,7 +27,10 @@ struct HUDView: View {
     let onDrag: (Double) -> Void
     let onInteraction: (Bool) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var percent: Int { Int((state.level * 100).rounded()) }
+    private var hidden: Bool { !state.visible }
 
     var body: some View {
         HStack(spacing: 13) {
@@ -34,7 +38,19 @@ struct HUDView: View {
                 .font(.system(size: 22, weight: .medium))
                 .frame(width: 34)
                 .contentTransition(.symbolEffect(.replace))
-            SegmentBar(level: state.level, onDrag: onDrag, onInteraction: onInteraction)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(state.title).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Text(state.kind == .muted ? "Muted" : "\(percent)%")
+                        .monospacedDigit()
+                        .contentTransition(.numericText(value: Double(percent)))
+                        .animation(reduceMotion ? nil : .smooth(duration: 0.16), value: percent)
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .opacity(0.9)
+                SegmentBar(level: state.level, reduceMotion: reduceMotion, onDrag: onDrag, onInteraction: onInteraction)
+            }
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
@@ -43,13 +59,17 @@ struct HUDView: View {
         .frame(width: 308, height: 65)
         .glassEffect(.regular, in: .capsule)
         .environment(\.colorScheme, .dark)
-        .opacity(state.visible ? 1 : 0)
-        .scaleEffect(state.visible ? 1 : 0.97, anchor: .top)
-        .animation(.easeOut(duration: 0.18), value: state.visible)
-        .padding(10)
+        .blur(radius: hidden && !reduceMotion ? 6 : 0)
+        .scaleEffect(hidden && !reduceMotion ? 0.72 : 1, anchor: .top)
+        .offset(y: hidden && !reduceMotion ? -16 : 0)
+        .opacity(hidden ? 0 : 1)
+        .animation(state.visible ? .spring(response: 0.34, dampingFraction: 0.72) : .easeIn(duration: 0.2), value: state.visible)
+        .padding(.horizontal, 10)
+        .padding(.top, 20)
+        .padding(.bottom, 10)
         .onHover(perform: onInteraction)
         .accessibilityElement()
-        .accessibilityLabel(state.kind.label)
+        .accessibilityLabel("\(state.title) \(state.kind.label)")
         .accessibilityValue(state.kind == .muted ? "Muted" : "\(percent) percent")
         .accessibilityAdjustableAction { direction in
             onDrag(min(max(state.level + (direction == .increment ? 1.0 / 16 : -1.0 / 16), 0), 1))
@@ -59,6 +79,7 @@ struct HUDView: View {
 
 private struct SegmentBar: View {
     let level: Double
+    let reduceMotion: Bool
     let onDrag: (Double) -> Void
     let onInteraction: (Bool) -> Void
 
@@ -71,6 +92,7 @@ private struct SegmentBar: View {
                         ZStack(alignment: .leading) {
                             Rectangle().fill(.white.opacity(0.26))
                             Rectangle().fill(.white).frame(width: seg.size.width * fill)
+                                .animation(reduceMotion ? nil : .smooth(duration: 0.16), value: fill)
                         }
                     }
                 }
@@ -84,7 +106,7 @@ private struct SegmentBar: View {
                 onDrag(min(max(value.location.x / geo.size.width, 0), 1))
             }.onEnded { _ in onInteraction(false) })
         }
-        .frame(height: 24)
+        .frame(height: 14)
     }
 }
 
@@ -96,17 +118,19 @@ private struct SegmentBar: View {
     private var hideTask: Task<Void, Never>?
     private var interacting = false
 
-    func show(_ kind: LevelKind, level: Double, on screen: NSScreen?) {
+    func show(_ kind: LevelKind, level: Double, title: String, on screen: NSScreen?) {
         let panel = panel ?? makePanel()
         self.panel = panel
         state.kind = kind
         state.level = level
+        state.title = title
         if let area = (screen ?? NSScreen.main)?.visibleFrame {
             let size = panel.frame.size
-            panel.setFrameOrigin(NSPoint(x: area.maxX - size.width - 2, y: area.maxY - size.height + 4))
+            panel.setFrameOrigin(NSPoint(x: area.maxX - size.width - 2, y: area.maxY - size.height + 14))
         }
         panel.orderFrontRegardless()
-        state.visible = true
+        // On the next turn, so a hidden banner renders once and the spring has somewhere to start from.
+        DispatchQueue.main.async { [state] in state.visible = true }
         scheduleHide()
     }
 
@@ -117,7 +141,7 @@ private struct SegmentBar: View {
             try? await Task.sleep(for: .seconds(1.6))
             guard !Task.isCancelled, let self else { return }
             self.state.visible = false
-            try? await Task.sleep(for: .milliseconds(250))
+            try? await Task.sleep(for: .milliseconds(300))
             if !Task.isCancelled { self.panel?.orderOut(nil) }
         }
     }

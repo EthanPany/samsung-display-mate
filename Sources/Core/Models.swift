@@ -102,10 +102,34 @@ public enum KeyStep {
         return min(max(next, range.lowerBound), range.upperBound)
     }
 
-    /// One key press of volume: fine near silence where small changes are loud, coarser higher up.
-    public static func volume(_ value: Int, up: Bool, fine: Bool, in range: ClosedRange<Int>) -> Int {
-        let reference = up ? value : max(value - 1, 0)
-        let step = fine ? 1 : min(max(reference / 8 + 1, 1), 6)
-        return min(max(value + (up ? step : -step), range.lowerBound), range.upperBound)
+    public static func volume(_ value: Int, up: Bool, step: Int, in range: ClosedRange<Int>) -> Int {
+        min(max(value + (up ? step : -step), range.lowerBound), range.upperBound)
+    }
+}
+
+/// Turns the speed of knob clicks into a step size: 1 when turning slowly, up to 8 when spinning.
+/// Pausing or reversing direction starts again from 1.
+public struct KnobAccelerator: Sendable {
+    public static let resetAfter: TimeInterval = 0.35
+    private var lastTime: TimeInterval?
+    private var lastUp: Bool?
+    private var smoothed: TimeInterval = 0
+
+    public init() {}
+
+    public mutating func step(up: Bool, at time: TimeInterval) -> Int {
+        defer { lastTime = time; lastUp = up }
+        guard let lastTime, lastUp == up, time - lastTime < Self.resetAfter else {
+            smoothed = Self.resetAfter
+            return 1
+        }
+        smoothed = smoothed * 0.5 + (time - lastTime) * 0.5
+        switch smoothed {
+        case 0.20...: return 1
+        case 0.13...: return 2
+        case 0.09...: return 3
+        case 0.055...: return 5
+        default: return 8
+        }
     }
 }
